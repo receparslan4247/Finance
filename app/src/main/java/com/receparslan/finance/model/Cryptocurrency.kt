@@ -1,5 +1,7 @@
 package com.receparslan.finance.model
 
+import androidx.room.Entity
+import androidx.room.PrimaryKey
 import com.google.gson.annotations.SerializedName
 
 data class CryptocurrencyList(
@@ -7,18 +9,30 @@ data class CryptocurrencyList(
     val cryptocurrencies: List<Cryptocurrency>
 )
 
+@Entity(tableName = "cryptocurrency")
 data class Cryptocurrency(
-    val id: String,
-    val name: String,
-    val symbol: String,
-    val image: String,
+    @PrimaryKey
+    var id: String,
+
+    var name: String,
+    var symbol: String,
+    var image: String,
 
     @SerializedName("current_price")
-    val currentPrice: Double,
+    var currentPrice: Double,
 
     @SerializedName("price_change_percentage_24h")
-    val priceChangePercentage24h: Double,
+    var priceChangePercentage24h: Double,
 
     @SerializedName("last_updated")
-    val lastUpdated: String,
+    var lastUpdated: String
+)
+
+data class KlineData(
+    val openTime: Long,
+    val open: String,
+    val high: String,
+    val low: String,
+    val close: String,
+    val closeTime: Long
 )

@@ -13,7 +13,7 @@ sealed class Screen(val rout: String) {
 data class NavigationItem(
     val title: String,
     val icon: Int,
-    val filledIcon : Int,
+    val filledIcon: Int,
     val route: String,
 )
 

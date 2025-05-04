@@ -4,8 +4,8 @@ import android.icu.text.DecimalFormat
 import android.icu.text.DecimalFormatSymbols
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -22,12 +22,19 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,10 +50,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
+import com.google.gson.Gson
 import com.receparslan.finance.R
 import com.receparslan.finance.model.Cryptocurrency
 import com.receparslan.finance.viewmodel.CryptocurrencyViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import java.net.URLEncoder
 import java.util.Locale
 
 // This function is used to check if the user has scrolled to the end of the list.
@@ -56,13 +68,19 @@ private fun LazyListState.reachedEnd(): Boolean {
     lastVisibleItem?.let { return it.index >= layoutInfo.totalItemsCount - 25 } ?: return false
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(viewModel: CryptocurrencyViewModel) {
+fun HomeScreen(viewModel: CryptocurrencyViewModel, navController: NavController) {
     val cryptocurrencyList = remember { viewModel.cryptocurrencyList } // List of cryptocurrencies to be displayed in the UI
 
     val isLoading by remember { viewModel.isLoading } // Loading state to show/hide loading indicators
 
     val listState = rememberLazyListState() // State of the LazyColumn for scrolling and item visibility
+
+    // State to manage the refreshing state
+    var isRefreshing by rememberSaveable { mutableStateOf(false) }
+    val refreshState = rememberPullToRefreshState()
+    val coroutineScope = rememberCoroutineScope()
 
     // This derived state is used to check if the user has scrolled to the end of the list.
     val reachedEnd by remember {
@@ -70,10 +88,6 @@ fun HomeScreen(viewModel: CryptocurrencyViewModel) {
             listState.reachedEnd()
         }
     }
-
-    // Show a loading indicator if the cryptocurrency list is empty and data is being loaded
-    if (cryptocurrencyList.isEmpty())
-        ScreenHolder()
 
     // This LaunchedEffect is triggered when the user reaches the end of the list.
     LaunchedEffect(reachedEnd) {
@@ -101,41 +115,69 @@ fun HomeScreen(viewModel: CryptocurrencyViewModel) {
         )
     )
 
-    // LazyColumn to display the list of cryptocurrencies
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(20.dp, 40.dp, 20.dp, 16.dp),
-        contentPadding = PaddingValues(top = 7.dp),
-        state = listState
-    ) {
-        items(cryptocurrencyList) {
-            CryptocurrencyRow(it) // Display each cryptocurrency in a row
+    // Show a loading indicator if the cryptocurrency list is empty and data is being loaded
+    if (cryptocurrencyList.isEmpty())
+        ScreenHolder()
+    else {
+        PullToRefreshBox(
+            state = refreshState,
+            isRefreshing = isRefreshing,
+            onRefresh = {
+                isRefreshing = true
+                coroutineScope.launch {
+                    viewModel.refreshHomeScreen()
+                    delay(1500)
+                    isRefreshing = false
+                }
+            }
+        ) {
+            // LazyColumn to display the list of cryptocurrencies
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(20.dp, 40.dp, 20.dp, 16.dp),
+                contentPadding = PaddingValues(top = 7.dp),
+                state = listState
+            ) {
+                items(cryptocurrencyList) {
+                    CryptocurrencyRow(it, navController) // Display each cryptocurrency in a row
 
-            // Show a loading indicator at the end of the list if more items are being loaded
-            if (isLoading && cryptocurrencyList.lastOrNull() == it)
-                CryptocurrencyPlaceholder()
+                    // Show a loading indicator at the end of the list if more items are being loaded
+                    if (isLoading && cryptocurrencyList.lastOrNull() == it)
+                        CryptocurrencyPlaceholder()
 
-            // Show a spacer at the end of the list to show cryptocurrency on the bottom bar
-            if (cryptocurrencyList.lastOrNull() == it)
-                Spacer(Modifier.height(100.dp))
+                    // Show a spacer at the end of the list to show cryptocurrency on the bottom bar
+                    if (cryptocurrencyList.lastOrNull() == it)
+                        Spacer(Modifier.height(100.dp))
+                }
+            }
         }
     }
 }
 
 // This function is used to display each cryptocurrency in a row.
 @Composable
-fun CryptocurrencyRow(cryptocurrency: Cryptocurrency) {
+fun CryptocurrencyRow(cryptocurrency: Cryptocurrency, navController: NavController) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 12.dp)
             .shadow(elevation = 3.dp, spotColor = Color.White, ambientColor = Color.White, shape = RoundedCornerShape(size = 15.dp))
-            .background(color = Color(0xFF211E41), shape = RoundedCornerShape(size = 15.dp)),
+            .background(color = Color(0xFF211E41), shape = RoundedCornerShape(size = 15.dp))
+            .clickable {
+                // URLEncoder is used to encode the cryptocurrency object as a JSON string
+                val encodedString = URLEncoder.encode(Gson().toJson(cryptocurrency), "utf-8")
+
+                // Navigate to the detail screen with the encoded cryptocurrency object as an argument
+                navController.navigate("detail_screen/$encodedString")
+            },
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             // Display the cryptocurrency icon
             Image(
                 painter = rememberAsyncImagePainter(cryptocurrency.image),
@@ -178,7 +220,7 @@ fun CryptocurrencyRow(cryptocurrency: Cryptocurrency) {
         // Display the cryptocurrency price and price change percentage
         Column {
             Text(
-                text = "$" + DecimalFormat("#,###.#####", DecimalFormatSymbols(Locale.US)).format(cryptocurrency.currentPrice),
+                text = "$" + DecimalFormat("#,###.####", DecimalFormatSymbols(Locale.US)).format(cryptocurrency.currentPrice),
                 style = TextStyle(
                     fontSize = 16.sp,
                     color = Color.White,
@@ -193,7 +235,7 @@ fun CryptocurrencyRow(cryptocurrency: Cryptocurrency) {
             Spacer(Modifier.size(5.dp))
 
             Text(
-                text = (DecimalFormat("#.##").format(cryptocurrency.priceChangePercentage24h)) + "%",
+                text = cryptocurrency.priceChangePercentage24h.toString() + "%",
                 style = TextStyle(
                     fontSize = 12.sp,
                     color = if ((cryptocurrency.priceChangePercentage24h) > 0) Color(0xFF21BF73) else Color(0xFFD90429),

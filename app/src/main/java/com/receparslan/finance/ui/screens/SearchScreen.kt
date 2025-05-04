@@ -40,11 +40,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
 import com.receparslan.finance.R
 import com.receparslan.finance.viewmodel.CryptocurrencyViewModel
 
 @Composable
-fun SearchScreen(viewModel: CryptocurrencyViewModel) {
+fun SearchScreen(viewModel: CryptocurrencyViewModel, navController: NavController) {
     // This is the search query entered by the user
     var searchQuery by rememberSaveable { mutableStateOf("") }
 
@@ -125,7 +126,7 @@ fun SearchScreen(viewModel: CryptocurrencyViewModel) {
             contentPadding = PaddingValues(top = 7.dp),
         ) {
             items(cryptocurrencySearchList) {
-                CryptocurrencyRow(it)
+                CryptocurrencyRow(it, navController)
 
                 // Show a spacer at the end of the list to show cryptocurrency on the bottom bar
                 if (cryptocurrencySearchList.lastOrNull() == it)
