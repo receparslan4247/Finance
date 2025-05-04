@@ -1,7 +1,7 @@
 
 # Finance
 
-Finance-Kotlin is an Android application built with Kotlin for managing personal finances. It allows users to track income and expenses, organize transactions by category, and maintain an overview of their financial health.
+Finance is an Android application built with Kotlin for managing personal finances. It allows users to track income and expenses, organize transactions by category, and maintain an overview of their financial health.
 
 ## Features
 
